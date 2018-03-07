@@ -1,0 +1,333 @@
+#![feature(duration_from_micros)]
+#![feature(io)]
+extern crate ansi_term;
+extern crate alto;
+#[macro_use]
+extern crate error_chain;
+extern crate rand;
+extern crate num;
+
+
+error_chain! {
+    types {
+        Error, ErrorKind, ResultExt, Result;
+    }
+    foreign_links {
+        Io(::std::io::Error) #[cfg(unix)];
+        Alto(alto::AltoError);
+    }
+    errors {
+    }
+}
+
+use std::f64;
+use std::cmp::Ordering;
+use std::time::Duration;
+
+use ansi_term::Colour::*;
+
+fn value(f:(u64, u64)) -> f64 {
+    f.0 as f64 / f.1 as f64
+}
+fn median(f0:(u64, u64), f1:(u64, u64)) -> (u64, u64) {
+    (f0.0 + f1.0, f0.1 + f1.1)
+}
+fn multiply(f0:(u64, u64), f1:(u64, u64)) -> (u64, u64) {
+    (f0.0 * f1.0, f0.1 * f1.1)
+}
+
+fn palette(t:f64) -> (u8, u8, u8)
+{
+    let a = (0.5,0.5,0.5);
+    let b = (0.5,0.5,0.5);
+    let c = (1.0,1.0,1.0);
+    let d = (0.0,0.10,0.20);
+
+    let r =(a.0 + b.0 * f64::cos(6.28318 * (c.0 * t + d.0)),
+            a.1 + b.1 * f64::cos(6.28318 * (c.1 * t + d.1)),
+            a.2 + b.2 * f64::cos(6.28318 * (c.2 * t + d.2)));
+
+    ((r.0 * 255f64) as u8, (r.1 * 255f64) as u8, (r.2 * 255f64) as u8)
+}
+
+fn print_approximations(f:f64, n:u64) -> (u64, u64) {
+    assert!(f >= 0f64);
+
+    let mut low = (0, 1);
+    let mut high = (f64::round(f) as u64, 0);
+
+    let mut best_diff = f64::INFINITY;
+    let mut best_median = (1, 0);
+
+    //println!("approximating {} to the {}th iteration", f, n);
+
+    for i in 0..n {
+        let median = (low.0 + high.0, low.1 + high.1);
+
+        //first definition of the diophantine approximation
+        //let current_diff = f64::abs(value(median) - f);
+        //second definition
+        let current_diff = f64::abs(median.1 as f64 * f - median.0 as f64);
+
+        if current_diff < best_diff {
+            best_diff = current_diff;
+            best_median = median;
+            let p = palette(f64::sqrt(best_diff));
+            print!("{}", RGB(p.0, p.1, p.2).paint(format!("{}/{} ", best_median.0, best_median.1)));
+        } else {
+            let p = palette(f64::sqrt(i as f64 / 10f64));
+            print!("{}", RGB(p.0, p.1, p.2).paint("|"));
+        }
+        
+        match f.partial_cmp(&value(median)).unwrap() {
+            Ordering::Greater => low = median,
+            Ordering::Less=> high = median,
+            Ordering::Equal => break,
+        }
+    }
+    println!("");
+    best_median
+    //println!("\t{:?} : {}", best_median, best_diff);
+}
+
+/*
+fn main() {
+
+    play_synth();
+    //println!("notes");
+    //print_approximations(2f64.powf(0f64 / 12f64), 30);
+    //print_approximations(2f64.powf(1f64 / 12f64), 30);
+    //print_approximations(2f64.powf(2f64 / 12f64), 30);
+    //print_approximations(2f64.powf(3f64 / 12f64), 30);
+    //print_approximations(2f64.powf(4f64 / 12f64), 30);
+    //print_approximations(2f64.powf(5f64 / 12f64), 30);
+    //print_approximations(2f64.powf(6f64 / 12f64), 30);
+    //print_approximations(2f64.powf(7f64 / 12f64), 30);
+    //print_approximations(2f64.powf(8f64 / 12f64), 30);
+    //print_approximations(2f64.powf(9f64 / 12f64), 30);
+    //print_approximations(2f64.powf(10f64 / 12f64), 30);
+    //print_approximations(2f64.powf(11f64 / 12f64), 30);
+    //print_approximations(2f64.powf(12f64 / 12f64), 30);
+
+}*/
+
+/// Marches through a Stern-Brocot tree using a vec of booleans
+/// as predicate for branching. 
+fn iterate_on_sb_tree(vec:&Vec<bool>) -> (u64, u64) {
+    let mut low = (0, 1);
+    let mut high = (1, 0);
+    let mut med = median(low, high);
+
+    for &b in vec  {
+        if b {
+            high = med;
+        } else {
+            low = med;
+        }
+        med = median(low, high);
+    }
+    med
+}
+
+use std::sync::Arc;
+use alto::*;
+use rand::Rng;
+use rand::distributions::Range as RandRange;
+use rand::distributions::IndependentSample;
+use std::io;
+use std::io::Read;
+
+fn main() {
+	let mut p = Player::new().unwrap();
+    let base = 440f64;
+    let mut fr = (1, 1);
+    //let mut rng = rand::thread_rng();
+    let mut v = Vec::<bool>::new();
+    let mut hz = Vec::<f64>::new();
+
+    println!("starting");
+
+    for c in io::stdin().chars() {
+        println!("read {:?}", c);
+        match c.unwrap() {
+            'a' => v.push(false),
+            'q' => v.push(true),
+            'A' => v.extend_from_slice(&[false, false]),
+            'Q' => v.extend_from_slice(&[true, true]),
+            'z' => v.extend_from_slice(&[false, true]),
+            's' => v.extend_from_slice(&[true, false]),
+            ' ' => {
+                let fr = multiply(fr, iterate_on_sb_tree(&v));
+                v.clear();
+                hz.push(base * fr.0 as f64 / fr.1 as f64);
+            }
+            '\n' => {
+                let fr = multiply(fr, iterate_on_sb_tree(&v));
+                v.clear();
+                hz.push(base * fr.0 as f64 / fr.1 as f64);
+
+                p.play(hz.clone(), Duration::from_secs(2));
+                hz.clear();
+            }
+            _ => ()
+        }
+    }
+
+    /*
+    match get char
+        get key
+        a push left
+        b push right
+        space apply then play sound
+        r reset
+
+    */
+
+    
+}
+
+const SIN_LEN:usize = 44_000;
+
+impl Player {
+
+    fn get_reverb_slot(ctx:&Context) -> Result<efx::AuxEffectSlot> {
+        let mut slot = ctx.new_aux_effect_slot()?;
+        let mut reverb: efx::EaxReverbEffect = ctx.new_effect()?;
+        reverb.set_preset(&efx::REVERB_PRESET_GENERIC)?;
+        slot.set_effect(&reverb)?;
+        Ok(slot)
+    }
+
+    fn new() -> Result<Player> {
+        let alto = Alto::load_default()?;
+        println!("Using output: {:?}", alto.default_output());
+        let dev = alto.open(None)?;
+        let ctx = dev.new_context(None)?;
+        
+        let slot = if dev.is_extension_present(alto::ext::Alc::Efx) {
+            println!("Using EFX reverb");
+            Player::get_reverb_slot(&ctx).map_err(|e| println!("{:?}", e)).ok()
+        } else {
+            println!("EFX not present");
+            None
+        };
+        Ok(Player{ctx, slot, wave:SinWave::default()})
+    }
+
+    fn play(&mut self, hz:Vec<f64>, duration:Duration) {
+
+        println!("{:?}hz", hz);
+        self.wave.hz = hz;
+
+        let buf = self.wave.by_ref().take(SIN_LEN as usize).collect::<Vec<_>>();
+        let buf = self.ctx.new_buffer(buf, SIN_LEN as i32).unwrap();
+        let buf = Arc::new(buf);
+
+        let mut src = self.ctx.new_static_source().unwrap();
+        src.set_buffer(buf).unwrap();
+        src.set_looping(true);
+        if let Some(ref mut slot) = self.slot {
+            src.set_aux_send(0, slot).unwrap();
+        }
+
+        src.play();
+
+        std::thread::sleep(duration);
+    }
+}
+
+struct Player {
+    ctx:Context,
+    slot:Option<efx::AuxEffectSlot>,
+    wave:SinWave,
+}
+
+
+struct SinWave {
+    hz: Vec<f64>,
+	vol: f64,
+    cursor: f64,
+}
+
+struct SinWaveRenderer<'w>(&'w mut SinWave);
+
+
+impl SinWave {
+    pub fn default() -> SinWave {
+        SinWave{hz:[440.0].to_vec(), vol:0.2, cursor:0.0}
+    }
+
+	pub fn new(hz: f64, vol: f64) -> SinWave {
+		SinWave{hz:[hz].to_vec(), vol, cursor: 0.0}
+	}
+
+	pub fn new_chord(hz: Vec<f64>, vol: f64) -> SinWave {
+		SinWave{hz:hz, vol, cursor: 0.0}
+	}
+}
+
+
+impl Iterator for SinWave {
+	type Item = Mono<i16>;
+
+	fn next(&mut self) -> Option<Mono<i16>> {
+
+
+        self.cursor += 2.0 * std::f64::consts::PI / SIN_LEN as f64;
+
+        let v:f64 = self.hz
+            .iter()
+            .map(|&hz| (hz * self.cursor).sin() * adjusted_volume(hz))
+            .sum();
+        
+        let v = v * self.vol / (self.hz.len() as f64);
+
+		Some(Mono{center: (v * std::i16::MAX as f64) as i16})
+	}
+}
+
+use num::clamp;
+use num::Float;
+use std::ops::Range;
+
+/// Maps a float inside from one interval to another
+/// If the input doesn't lie inside the first interval, it will be clamped
+/// Output is garanteed to be in second interval
+/// Behavior undefined for non-finite ranges or inputs
+fn map_interval_clamped<T:Float>(f:T, int_a:Range<T>, int_b:Range<T>) -> T {
+    let f = clamp(f, int_a.start, int_a.end);
+    let f = (f  - int_a.start) / (int_a.end - int_a.start);
+    f * (int_b.end - int_b.start) + int_b.start
+}
+
+fn adjusted_volume(hz:f64) -> f64 {
+    map_interval_clamped(hz.ln(), 4.6 .. 8.6, 1.5 .. 0.5)
+}
+
+/*
+for _ in 0 .. {
+
+        let mut r_p = Range::new(1u32, 5).ind_sample(&mut rng);
+        let mut r_q = Range::new(1u32, 6).ind_sample(&mut rng);
+        if f < 220f64 {
+            r_p += 1
+        }
+        if f > 880f64 {
+            r_q += 1;
+        }
+        if r_q == r_p {
+            continue
+        }
+        println!("{}/{}", r_p, r_q);
+
+        f *= r_p as f64 / r_q as f64;
+
+        let mut tempo = 50_000 *  Range::new(2u32, 10).ind_sample(&mut rng);
+        if rng.gen() {
+            tempo = prev_tempo;
+        }
+        prev_tempo = tempo;
+        println!("{}/{} for {}", r_p, r_q, tempo);
+        
+        p.play(f, Duration::from_micros(tempo as u64));
+    }*/
