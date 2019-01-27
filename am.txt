@@ -1,0 +1,32 @@
+#Am, standard, first inversion and second inversion
+#
+_ aq aqqqq
+_
+aqqqq
+aq
+#_ aq aqqqq
+#
+_ qaa aqqqq
+qaa
+_
+aqqqq
+#_ qaa aqqqq
+#
+_ qaa qaqa
+qaqa
+qaa
+_
+#_ qaa qaqa
+#
+_ qa qaaaa
+_
+qaaaa
+qa
+#_ qa qaaaa
+#
+_ aq aqqqq
+_
+aqqqq
+aq
+_ qa qaaaa
+#

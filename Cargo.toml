@@ -5,7 +5,7 @@ authors = ["louis <louis.roc@gmail.com>"]
 
 [dependencies]
 ansi_term = "0.10.2"
-alto = "3.0.1"
-error-chain = "0.11.0"
+alto = "*"
+error-chain = ">=0.12.0"
 num = "0.1.42"
 rand = "0.4.2"

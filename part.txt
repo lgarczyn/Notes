@@ -1,0 +1,34 @@
+a Aa q Qq
+q qa qAa qq qQq
+aq aqaa qq qqqq
+aqq qaa
+aq qa
+aqa qaq
+aq aqaa qq qqqq
+
+a aq qq qqqq
+a aq qq qqqq
+a aqa q qq
+aqa qa qaq
+aq qaa qaa
+q qa qqqq
+q qa qqqq
+a Aa q Qq
+q qa qAa qq
+aq aqaa qq
+aqq qaa
+aq qa
+aqa qaq
+aq aqaa qq qqqq
+
+aq qq qqqq
+aqa qqa
+q qa qq
+aqa qa qaq
+aq qaa
+
+aq
+qq
+qqqq
+qqa
+aqa
